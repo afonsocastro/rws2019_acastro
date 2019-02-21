@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+
+<launch>
+    <rosparam command="load" file="$(find player_acastro)/param/params.yaml"/>
+
+    <node name="acastro" pkg="player_acastro" type="player_acastro_node" respawn="true" output="screen"/>
+</launch>
