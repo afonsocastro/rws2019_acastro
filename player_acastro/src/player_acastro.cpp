@@ -240,6 +240,8 @@ for (size_t i=0; i< distance_to_hunters.size(); i++)
   distance_closest_hunter = distance_to_hunters[i];
   }
 }
+
+
 float angle;
 if (distance_closest_prey<distance_closest_hunter)
 {
@@ -247,7 +249,7 @@ if (distance_closest_prey<distance_closest_hunter)
 }
 else
 {
-  angle = angle_to_hunters[idx_closest_hunter]+M_PI/16;
+  angle = angle_to_hunters[idx_closest_hunter]+M_PI/32;
 }
 
 float dx=10;
