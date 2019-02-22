@@ -162,6 +162,23 @@ public:
     ROS_INFO_STREAM("I'm hunting " << team_preys->team_name << " and i am being chased by " << team_hunters->team_name << endl);
   }
 
+  std::tuple<float, float> getDistanceAndAngleToPlayer(string other_name)
+  {
+    tf::StampedTransform T0;
+try{
+  listener.lookupTransform(player_name, other_name, ros::Time(0), T0);
+}
+catch (tf::TransformException ex){
+  ROS_ERROR("%s", ex.what());
+  ros::Duration(0.1).sleep();
+  return {1000.0, 0.0};
+}
+
+float d= sqrt(T0.getOrigin().x() * T0.getOrigin().x() + T0.getOrigin().y() * T0.getOrigin().y());
+float a= atan2 (T0.getOrigin().y(), T0.getOrigin().x());
+return {d,a};
+  }
+
   void makeAPlayCallback(rws2019_msgs::MakeAPlayConstPtr msg)
   {
     ROS_INFO("received a new message");
@@ -179,8 +196,31 @@ catch (tf::TransformException ex){
 }
 
 //STEP2: define how i want to move
-float dx=0.3;
-float angle = M_PI/6;
+// For each prey, find the closest. Then follow her
+vector<float> distance_to_preys;
+vector<float> angle_to_preys;
+for (size_t i=0; i < team_preys->player_names.size(); i++)
+{
+  ROS_WARN_STREAM("team_preys = " << team_preys->player_names[i]);
+  std::tuple<float, float> t = getDistanceAndAngleToPlayer(team_preys->player_names[i]);
+  distance_to_preys.push_back(std::get<0>(t));
+  angle_to_preys.push_back(std::get<1>(t));
+}
+
+int idx_closest_prey = 0;
+float distance_closest_prey = 1000;
+for (size_t i=0; i< distance_to_preys.size(); i++)
+{
+  if (distance_to_preys[i] < distance_closest_prey)
+  {
+  idx_closest_prey = i;
+  distance_closest_prey = distance_to_preys[i];
+  }
+}
+
+
+float dx=10;
+float angle = angle_to_preys[idx_closest_prey];
 
    //STEP2.5: check values
     float dx_max = msg->dog;
@@ -191,7 +231,7 @@ float angle = M_PI/6;
 
 //STEP 3: define local movement
     tf::Transform T1;
-    T1.setOrigin( tf::Vector3(dx, 0, 0.0) );
+    T1.setOrigin( tf::Vector3(dx, 0.0, 0.0) );
     tf::Quaternion q;
     q.setRPY(0, 0, angle);
     T1.setRotation(q);
