@@ -183,7 +183,7 @@ float angle = M_PI/6;
             dx > dx_max ? dx = dx_max : dx = dx;
 
             double amax = M_PI/30;
-            fabs(a) > fabs(amax) ? a = amax * a / fabs(a): a = a;
+              fabs(angle) > fabs(amax) ? angle = amax * angle / fabs(angle): angle = angle;
 
 //STEP 3: define local movement
     tf::Transform T1;
