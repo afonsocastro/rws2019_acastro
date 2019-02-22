@@ -4,6 +4,7 @@
 #include <vector>
 #include <rws2019_msgs/MakeAPlay.h>
 #include <tf/transform_listener.h>
+#include <visualization_msgs/Marker.h>
 
 using namespace std;
 using namespace boost;
@@ -51,6 +52,7 @@ class Player
 public:
   // properties
   string player_name;
+   ros::NodeHandle n;
 
   Player(string player_name_in)
   {
@@ -102,15 +104,17 @@ public:
   boost::shared_ptr<Team> team_preys;
   tf::TransformBroadcaster br;
   tf::TransformListener listener;
+  boost::shared_ptr<ros::Publisher> vis_pub;
 
 
   MyPlayer(string player_name_in, string team_name_in) : Player(player_name_in)
   {
     setTeamName(team_name_in);
-
+    vis_pub = (boost::shared_ptr<ros::Publisher>) new ros::Publisher;
     team_red = (boost::shared_ptr<Team>)new Team("red");
     team_green = (boost::shared_ptr<Team>)new Team("green");
     team_blue = (boost::shared_ptr<Team>)new Team("blue");
+    (*vis_pub) = n.advertise<visualization_msgs::Marker>( "/player_names", 0 );
 
     if (team_red->playerBelongsToTeam(player_name))
     {
@@ -179,15 +183,15 @@ float dx=0.3;
 float angle = M_PI/6;
 
    //STEP2.5: check values
-            float dx_max = msg->dog;
-            dx > dx_max ? dx = dx_max : dx = dx;
+    float dx_max = msg->dog;
+    dx > dx_max ? dx = dx_max : dx = dx;
 
-            double amax = M_PI/30;
-              fabs(angle) > fabs(amax) ? angle = amax * angle / fabs(angle): angle = angle;
+    double amax = M_PI/30;
+    fabs(angle) > fabs(amax) ? angle = amax * angle / fabs(angle): angle = angle;
 
 //STEP 3: define local movement
     tf::Transform T1;
-    T1.setOrigin( tf::Vector3(-dx, 2*dx, 0.0) );
+    T1.setOrigin( tf::Vector3(dx, 0, 0.0) );
     tf::Quaternion q;
     q.setRPY(0, 0, angle);
     T1.setRotation(q);
@@ -196,6 +200,33 @@ float angle = M_PI/6;
   //STEP 4: define global movement
   tf::Transform Tglobal= T0*T1;
     br.sendTransform(tf::StampedTransform(Tglobal, ros::Time::now(), "world", player_name));
+
+    visualization_msgs::Marker marker;
+marker.header.frame_id = player_name;
+marker.header.stamp = ros::Time();
+marker.ns = player_name;
+marker.id = 0;
+marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+marker.action = visualization_msgs::Marker::ADD;
+// marker.pose.position.x = 1;
+// marker.pose.position.y = 1;
+// marker.pose.position.z = 1;
+// marker.pose.orientation.x = 0.0;
+// marker.pose.orientation.y = 0.0;
+// marker.pose.orientation.z = 0.0;
+// marker.pose.orientation.w = 1.0;
+// marker.scale.x = 1;
+// marker.scale.y = 0.1;
+marker.scale.z = 0.6;
+marker.color.a = 1.0; // Don't forget to set the alpha!
+marker.color.r = 0.0;
+marker.color.g = 1.0;
+marker.color.b = 0.0;
+marker.text=player_name;
+//only if using a MESH_RESOURCE marker type:
+//marker.mesh_resource = "package://pr2_description/meshes/base_v0/base.dae";
+vis_pub->publish( marker );
+
   };
 
 private:
@@ -218,6 +249,7 @@ int main(int argc, char **argv)
 
    acastro::Team team_red("red");
 #endif
+
   player.printInfo();
 ros::Rate r(20);
 

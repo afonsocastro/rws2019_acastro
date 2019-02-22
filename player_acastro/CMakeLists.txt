@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   rws2019_msgs
+  visualization_msgs
 tf
 )
 
