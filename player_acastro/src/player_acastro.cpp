@@ -1,12 +1,14 @@
 #include <ros/ros.h>
 #include <iostream>
+#include <tf/transform_broadcaster.h>
 #include <vector>
+#include <rws2019_msgs/MakeAPlay.h>
 
 using namespace std;
 using namespace boost;
 using namespace ros;
 
-namespace acastro
+namespace acastro_ns
 {
 class Team
 {
@@ -91,6 +93,8 @@ public:
   boost::shared_ptr<Team> team_hunters;
   boost::shared_ptr<Team> team_mine;
   boost::shared_ptr<Team> team_preys;
+  tf::TransformBroadcaster br;
+  tf::Transform transform;
 
   MyPlayer(string player_name_in, string team_name_in) : Player(player_name_in)
   {
@@ -129,16 +133,34 @@ public:
     ROS_INFO_STREAM("I'm hunting " << team_preys->team_name << " and i am being chased by " << team_hunters->team_name << endl);
   }
 
+  void makeAPlayCallback(rws2019_msgs::MakeAPlayConstPtr msg)
+  {
+    ROS_INFO("received a new message");
+    //publicar uma transformacao
+
+    tf::Transform transform1;
+    transform1.setOrigin( tf::Vector3(3.0, 2.5, 0.0) );
+    tf::Quaternion q;
+    q.setRPY(0, 0, 0);
+    transform1.setRotation(q);
+    br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "world", player_name));
+  }
+
 private:
 };
 
 } // namespace acastro
 
+
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "acastro");
+  //ros::init(argc, argv, "acastro");
   ros::NodeHandle n;
-  acastro::MyPlayer player("acastro", "green");
+  acastro_ns::MyPlayer player("acastro", "green");
+
+ ros::Subscriber sub = n.subscribe("/make_a_play", 100, &acastro_ns::MyPlayer::makeAPlayCallback, &player);
+
+
 #if 0
   cout << "Hello World from " << player.player_name << " of team " << player.getTeamName() << endl;
 
