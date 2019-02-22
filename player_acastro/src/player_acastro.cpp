@@ -178,6 +178,12 @@ catch (tf::TransformException ex){
 float dx=0.3;
 float angle = M_PI/6;
 
+   //STEP2.5: check values
+            float dx_max = msg->dog;
+            dx > dx_max ? dx = dx_max : dx = dx;
+
+            double amax = M_PI/30;
+            fabs(a) > fabs(amax) ? a = amax * a / fabs(a): a = a;
 
 //STEP 3: define local movement
     tf::Transform T1;
