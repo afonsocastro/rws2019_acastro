@@ -199,6 +199,9 @@ catch (tf::TransformException ex){
 // For each prey, find the closest. Then follow her
 vector<float> distance_to_preys;
 vector<float> angle_to_preys;
+vector<float> distance_to_hunters;
+vector<float> angle_to_hunters;
+
 for (size_t i=0; i < team_preys->player_names.size(); i++)
 {
   ROS_WARN_STREAM("team_preys = " << team_preys->player_names[i]);
@@ -206,6 +209,15 @@ for (size_t i=0; i < team_preys->player_names.size(); i++)
   distance_to_preys.push_back(std::get<0>(t));
   angle_to_preys.push_back(std::get<1>(t));
 }
+
+ for (size_t i =0; i< team_hunters->player_names.size(); i++)
+            {
+                ROS_WARN_STREAM("team_hunters = " << team_hunters->player_names[i]);
+
+                std::tuple<float, float> tt = getDistanceAndAngleToPlayer(team_hunters->player_names[i]);
+                distance_to_hunters.push_back( std::get<0>(tt));
+                angle_to_hunters.push_back( std::get<1>(tt));
+            }
 
 int idx_closest_prey = 0;
 float distance_closest_prey = 1000;
@@ -218,9 +230,27 @@ for (size_t i=0; i< distance_to_preys.size(); i++)
   }
 }
 
+int idx_closest_hunter = 0;
+float distance_closest_hunter = 1000;
+for (size_t i=0; i< distance_to_hunters.size(); i++)
+{
+  if (distance_to_hunters[i] < distance_closest_hunter)
+  {
+  idx_closest_hunter = i;
+  distance_closest_hunter = distance_to_hunters[i];
+  }
+}
+float angle;
+if (distance_closest_prey<distance_closest_hunter)
+{
+  angle = angle_to_preys[idx_closest_prey];
+}
+else
+{
+  angle = angle_to_hunters[idx_closest_hunter]+M_PI/16;
+}
 
 float dx=10;
-float angle = angle_to_preys[idx_closest_prey];
 
    //STEP2.5: check values
     float dx_max = msg->dog;
