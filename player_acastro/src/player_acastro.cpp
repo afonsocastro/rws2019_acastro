@@ -5,15 +5,21 @@
 #include <rws2019_msgs/MakeAPlay.h>
 #include <tf/transform_listener.h>
 #include <visualization_msgs/Marker.h>
+#include <pcl_ros/point_cloud.h>
+#include <pcl/point_types.h>
+#include <boost/foreach.hpp>
+#include <rws2019_msgs/DoTheMath.h>
 
 using namespace std;
 using namespace boost;
 using namespace ros;
 
+typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
+
 float randomizePosition()
 {
-    srand(6832*time(NULL)); // set initial seed value to 5323
-    return (((double)rand() / (RAND_MAX)) - 0.5) * 10;
+  srand(6832 * time(NULL)); // set initial seed value to 5323
+  return (((double)rand() / (RAND_MAX)) - 0.5) * 10;
 }
 
 namespace acastro_ns
@@ -52,7 +58,7 @@ class Player
 public:
   // properties
   string player_name;
-   ros::NodeHandle n;
+  ros::NodeHandle n;
 
   Player(string player_name_in)
   {
@@ -106,15 +112,15 @@ public:
   tf::TransformListener listener;
   boost::shared_ptr<ros::Publisher> vis_pub;
 
-
   MyPlayer(string player_name_in, string team_name_in) : Player(player_name_in)
   {
+
     setTeamName(team_name_in);
-    vis_pub = (boost::shared_ptr<ros::Publisher>) new ros::Publisher;
+    vis_pub = (boost::shared_ptr<ros::Publisher>)new ros::Publisher;
     team_red = (boost::shared_ptr<Team>)new Team("red");
     team_green = (boost::shared_ptr<Team>)new Team("green");
     team_blue = (boost::shared_ptr<Team>)new Team("blue");
-    (*vis_pub) = n.advertise<visualization_msgs::Marker>( "/player_names", 0 );
+    (*vis_pub) = n.advertise<visualization_msgs::Marker>("/player_names", 0);
 
     if (team_red->playerBelongsToTeam(player_name))
     {
@@ -142,18 +148,18 @@ public:
     setTeamName(team_mine->team_name);
 
     //define intial position
-            float sx = randomizePosition();
-            float sy = randomizePosition();
-            tf::Transform T1;
-            T1.setOrigin( tf::Vector3(sx, sy, 0.0) );
-            tf::Quaternion q;
-            q.setRPY(0, 0, M_PI);
-            T1.setRotation(q);
+    float sx = randomizePosition();
+    float sy = randomizePosition();
+    tf::Transform T1;
+    T1.setOrigin(tf::Vector3(sx, sy, 0.0));
+    tf::Quaternion q;
+    q.setRPY(0, 0, M_PI);
+    T1.setRotation(q);
 
-            //define global movement
-            tf::Transform Tglobal = T1;
-            br.sendTransform(tf::StampedTransform(Tglobal, ros::Time::now(), "world", player_name));
-            printInfo();
+    //define global movement
+    tf::Transform Tglobal = T1;
+    br.sendTransform(tf::StampedTransform(Tglobal, ros::Time::now(), "world", player_name));
+    printInfo();
   }
 
   void printInfo()
@@ -165,146 +171,181 @@ public:
   std::tuple<float, float> getDistanceAndAngleToPlayer(string other_name)
   {
     tf::StampedTransform T0;
-try{
-  listener.lookupTransform(player_name, other_name, ros::Time(0), T0);
-}
-catch (tf::TransformException ex){
-  ROS_ERROR("%s", ex.what());
-  ros::Duration(0.1).sleep();
-  return {1000.0, 0.0};
-}
+    try
+    {
+      listener.lookupTransform(player_name, other_name, ros::Time(0), T0);
+    }
+    catch (tf::TransformException ex)
+    {
+      //ROS_ERROR("%s", ex.what());
+      ros::Duration(0.1).sleep();
+      return {1000.0, 0.0};
+    }
 
-float d= sqrt(T0.getOrigin().x() * T0.getOrigin().x() + T0.getOrigin().y() * T0.getOrigin().y());
-float a= atan2 (T0.getOrigin().y(), T0.getOrigin().x());
-return {d,a};
+    float d = sqrt(T0.getOrigin().x() * T0.getOrigin().x() + T0.getOrigin().y() * T0.getOrigin().y());
+    float a = atan2(T0.getOrigin().y(), T0.getOrigin().x());
+    return {d, a};
   }
 
   void makeAPlayCallback(rws2019_msgs::MakeAPlayConstPtr msg)
   {
-    ROS_INFO("received a new message");
+    //ROS_INFO("received a new message");
     //publicar uma transformacao
 
+    //STEP 1: Find out where I am
+    tf::StampedTransform T0;
+    try
+    {
+      listener.lookupTransform("/world", player_name, ros::Time(0), T0);
+    }
+    catch (tf::TransformException ex)
+    {
+      //ROS_ERROR("%s", ex.what());
+      ros::Duration(0.1).sleep();
+    }
 
-//STEP 1: Find out where I am
-tf::StampedTransform T0;
-try{
-  listener.lookupTransform("/world", player_name, ros::Time(0), T0);
-}
-catch (tf::TransformException ex){
-  ROS_ERROR("%s", ex.what());
-  ros::Duration(0.1).sleep();
-}
+    //STEP2: define how i want to move
+    // For each prey, find the closest. Then follow her
+    vector<float> distance_to_preys;
+    vector<float> angle_to_preys;
+    vector<float> distance_to_hunters;
+    vector<float> angle_to_hunters;
 
-//STEP2: define how i want to move
-// For each prey, find the closest. Then follow her
-vector<float> distance_to_preys;
-vector<float> angle_to_preys;
-vector<float> distance_to_hunters;
-vector<float> angle_to_hunters;
+    for (size_t i = 0; i < team_preys->player_names.size(); i++)
+    {
+      ROS_WARN_STREAM("team_preys = " << team_preys->player_names[i]);
+      std::tuple<float, float> t = getDistanceAndAngleToPlayer(team_preys->player_names[i]);
+      distance_to_preys.push_back(std::get<0>(t));
+      angle_to_preys.push_back(std::get<1>(t));
+    }
 
-for (size_t i=0; i < team_preys->player_names.size(); i++)
-{
-  ROS_WARN_STREAM("team_preys = " << team_preys->player_names[i]);
-  std::tuple<float, float> t = getDistanceAndAngleToPlayer(team_preys->player_names[i]);
-  distance_to_preys.push_back(std::get<0>(t));
-  angle_to_preys.push_back(std::get<1>(t));
-}
+    for (size_t i = 0; i < team_hunters->player_names.size(); i++)
+    {
+      ROS_WARN_STREAM("team_hunters = " << team_hunters->player_names[i]);
+      std::tuple<float, float> tt = getDistanceAndAngleToPlayer(team_hunters->player_names[i]);
+      distance_to_hunters.push_back(std::get<0>(tt));
+      angle_to_hunters.push_back(std::get<1>(tt));
+    }
 
- for (size_t i =0; i< team_hunters->player_names.size(); i++)
- {
-     ROS_WARN_STREAM("team_hunters = " << team_hunters->player_names[i]);
-     std::tuple<float, float> tt = getDistanceAndAngleToPlayer(team_hunters->player_names[i]);
-     distance_to_hunters.push_back( std::get<0>(tt));
-     angle_to_hunters.push_back( std::get<1>(tt));
- }
+    int idx_closest_prey = 0;
+    float distance_closest_prey = 1000;
+    for (size_t i = 0; i < distance_to_preys.size(); i++)
+    {
+      if (distance_to_preys[i] < distance_closest_prey)
+      {
+        idx_closest_prey = i;
+        distance_closest_prey = distance_to_preys[i];
+      }
+    }
 
-int idx_closest_prey = 0;
-float distance_closest_prey = 1000;
-for (size_t i=0; i< distance_to_preys.size(); i++)
-{
-  if (distance_to_preys[i] < distance_closest_prey)
-  {
-  idx_closest_prey = i;
-  distance_closest_prey = distance_to_preys[i];
-  }
-}
+    int idx_closest_hunter = 0;
+    float distance_closest_hunter = 1000;
+    for (size_t i = 0; i < distance_to_hunters.size(); i++)
+    {
+      if (distance_to_hunters[i] < distance_closest_hunter)
+      {
+        idx_closest_hunter = i;
+        distance_closest_hunter = distance_to_hunters[i];
+      }
+    }
 
- int idx_closest_hunter = 0;
- float distance_closest_hunter = 1000;
- for (size_t i=0; i< distance_to_hunters.size(); i++)
- {
-   if (distance_to_hunters[i] < distance_closest_hunter)
-   {
-   idx_closest_hunter = i;
-   distance_closest_hunter = distance_to_hunters[i];
-   }
- }
+    std::tuple<float, float> t_ttv = getDistanceAndAngleToPlayer("ttavares");
+    float distance_to_ttv = (std::get<0>(t_ttv));
+    float angle_to_ttv = (std::get<1>(t_ttv));
+    float angle;
+
+    if (distance_closest_hunter > 2)
+    {
+        angle = angle_to_ttv;
+    }
+    else
+    {
+     angle = angle_to_hunters[idx_closest_hunter] + M_PI;
+    }
 
 
-float angle;
- if (distance_closest_prey<distance_closest_hunter)
- {
-  angle = angle_to_preys[idx_closest_prey];
- }
- else
- {
-   angle = angle_to_hunters[idx_closest_hunter]+M_PI;
- }
 
-float dx=10;
+    float dx = 10;
 
-   //STEP2.5: check values
-    float dx_max = msg->dog;
+    //STEP2.5: check values
+    float dx_max = msg->cheetah;
     dx > dx_max ? dx = dx_max : dx = dx;
 
-    double amax = M_PI/30;
-    fabs(angle) > fabs(amax) ? angle = amax * angle / fabs(angle): angle = angle;
+    double amax = M_PI / 30;
+    if (angle != 0)
+    {
+      fabs(angle) > fabs(amax) ? angle = amax * angle / fabs(angle) : angle = angle;
+    }
 
-//STEP 3: define local movement
+    //STEP 3: define local movement
     tf::Transform T1;
-    T1.setOrigin( tf::Vector3(dx, 0.0, 0.0) );
+    T1.setOrigin(tf::Vector3(dx, 0.0, 0.0));
     tf::Quaternion q;
     q.setRPY(0, 0, angle);
     T1.setRotation(q);
-  
 
-  //STEP 4: define global movement
-  tf::Transform Tglobal= T0*T1;
+    //STEP 4: define global movement
+    tf::Transform Tglobal = T0 * T1;
     br.sendTransform(tf::StampedTransform(Tglobal, ros::Time::now(), "world", player_name));
 
     visualization_msgs::Marker marker;
-marker.header.frame_id = player_name;
-marker.header.stamp = ros::Time();
-marker.ns = player_name;
-marker.id = 0;
-marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
-marker.action = visualization_msgs::Marker::ADD;
-// marker.pose.position.x = 1;
-// marker.pose.position.y = 1;
-// marker.pose.position.z = 1;
-// marker.pose.orientation.x = 0.0;
-// marker.pose.orientation.y = 0.0;
-// marker.pose.orientation.z = 0.0;
-// marker.pose.orientation.w = 1.0;
-// marker.scale.x = 1;
-// marker.scale.y = 0.1;
-marker.scale.z = 0.6;
-marker.color.a = 1.0; // Don't forget to set the alpha!
-marker.color.r = 0.0;
-marker.color.g = 1.0;
-marker.color.b = 0.0;
-marker.text=player_name;
-//only if using a MESH_RESOURCE marker type:
-//marker.mesh_resource = "package://pr2_description/meshes/base_v0/base.dae";
-vis_pub->publish( marker );
-
+    marker.header.frame_id = player_name;
+    marker.header.stamp = ros::Time();
+    marker.ns = player_name;
+    marker.id = 0;
+    marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+    marker.action = visualization_msgs::Marker::ADD;
+    // marker.pose.position.x = 1;
+    // marker.pose.position.y = 1;
+    // marker.pose.position.z = 1;
+    // marker.pose.orientation.x = 0.0;
+    // marker.pose.orientation.y = 0.0;
+    // marker.pose.orientation.z = 0.0;
+    // marker.pose.orientation.w = 1.0;
+    // marker.scale.x = 1;
+    // marker.scale.y = 0.1;
+    marker.scale.z = 0.6;
+    marker.color.a = 1.0; // Don't forget to set the alpha!
+    marker.color.r = 0.0;
+    marker.color.g = 1.0;
+    marker.color.b = 0.0;
+    marker.text = player_name;
+    //only if using a MESH_RESOURCE marker type:
+    //marker.mesh_resource = "package://pr2_description/meshes/base_v0/base.dae";
+    vis_pub->publish(marker);
   };
+  void subPointsCloud(const PointCloud::ConstPtr &msg)
+  {
+    printf("Cloud: width = %d, height = %d\n", msg->width, msg->height);
+    BOOST_FOREACH (const pcl::PointXYZ &pt, msg->points)
+      printf("\t(%f, %f, %f)\n", pt.x, pt.y, pt.z);
+  }
+
+  bool doTheMathCallback(rws2019_msgs::DoTheMath::Request  &req,
+                               rws2019_msgs::DoTheMath::Response &res)
+        {
+          if (req.op == "+")
+          {res.result =req.a +req.b;}
+          else if (req.op == "-")
+          {res.result = req.a - req.b; }
+          else if(req.op == "*")
+          {res.result = req.a * req.b;}
+          else if (req.op == "/")
+          {res.result = req.a / req.b;}
+          else
+          {return false;}
+
+            res.result = req.a + req.b;
+            ROS_INFO("request: x=%ld, y=%ld", (long int)req.a, (long int)req.b);
+            ROS_INFO("sending back response: [%ld]", (long int)res.result);
+            return true;
+        }
+
 
 private:
 };
 
-} // namespace acastro
-
+} // namespace acastro_ns
 
 int main(int argc, char **argv)
 {
@@ -312,8 +353,10 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
   acastro_ns::MyPlayer player("acastro", "green");
 
- ros::Subscriber sub = n.subscribe("/make_a_play", 100, &acastro_ns::MyPlayer::makeAPlayCallback, &player);
+  ros::Subscriber sub = n.subscribe("/make_a_play", 100, &acastro_ns::MyPlayer::makeAPlayCallback, &player);
+    ros::ServiceServer service = n.advertiseService("do_the_math", &acastro_ns::MyPlayer::doTheMathCallback, &player);
 
+  ros::Subscriber sub2 = n.subscribe<PointCloud>("/object_point_cloud", 1, &acastro_ns::MyPlayer::subPointsCloud, &player);
 
 #if 0
   cout << "Hello World from " << player.player_name << " of team " << player.getTeamName() << endl;
@@ -322,12 +365,12 @@ int main(int argc, char **argv)
 #endif
 
   player.printInfo();
-ros::Rate r(20);
+  ros::Rate r(20);
 
   while (ros::ok())
   {
-  ros::spinOnce();
-        r.sleep();
+    ros::spinOnce();
+    r.sleep();
   }
 
   return 1;

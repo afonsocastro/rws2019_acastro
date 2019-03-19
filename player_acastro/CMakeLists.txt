@@ -14,6 +14,8 @@ find_package(catkin REQUIRED COMPONENTS
   rws2019_msgs
   visualization_msgs
 tf
+pcl_ros
+pcl_conversions 
 )
 
 ## System dependencies are found with CMake's conventions
